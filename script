@@ -1,0 +1,58 @@
+const FIREBASE_URL = "https://generate-sertif1-default-rtdb.asia-southeast1.firebasedatabase.app/licenses.json";
+const API_KEY = "AIzaSyCFWw1aQAhakA6_8Karejs5fTE5gDu6zDM";
+
+
+// GANTI no 4 angka terakhir nmr wa yang kalian masukkan saat pembelian, u nya jggggn dihps, misal u5681
+function validateLicense(u5681) { 
+  const response = UrlFetchApp.fetch(FIREBASE_URL + "?auth=" + API_KEY, {
+    method: "get",
+    contentType: "application/json"
+  });
+
+  const licenses = JSON.parse(response.getContentText());
+  if (licenses.u5681 === u5681) {
+    return true;
+  }
+}
+
+function onFormSubmit(e) {
+  const form = FormApp.getActiveForm();
+  let formResponses = form.getResponses();
+  let latestFR = formResponses[formResponses.length - 1];
+
+  const itemResponses = latestFR.getItemResponses();
+  let email = itemResponses[1].getResponse(); // Email dari form
+  let nama = itemResponses[0].getResponse();  // Nama dari form
+
+  const activeUserEmail = Session.getActiveUser().getEmail();
+  const isValid = validateLicense(activeUserEmail);
+  if (!isValid) {
+    throw new Error("Lisensi tidak valid! Harap pakai kode lisensi yang kalian dapat dari pembelian yang sah sesuai dengan email yang kalian masukkan ketika pembelian");
+  }
+
+  // Ambil template Google Slides
+  var file = DriveApp.getFileById("1Jytk2PBhZhJriSAOj9TcnpYmIm6CUbv1CuxHWderMMc"); // ID Google Slides template
+  var copy = file.makeCopy(nama + " - Certificate");
+  var copiedTemplateId = copy.getId();
+  let slide = SlidesApp.openById(copiedTemplateId);
+
+  // Gantilah {{Name}} dengan nama dari form di slide pertama
+  var slidePage = slide.getSlides()[0]; // Mengakses slide pertama
+  slidePage.replaceAllText('{{Name}}', nama);
+
+  slide.saveAndClose();
+
+  // Konversi Slide ke PDF
+  var pdf = DriveApp.getFileById(copiedTemplateId).getAs('application/pdf');
+
+  // Kirim sertifikat ke email peserta
+  GmailApp.sendEmail(email, "Sertifikat Webinar Nasional", "Halo, " + nama + ",\n\nTerimakasih atas kehadiran Anda di Webinar Nasional pada 30 Desember 2024, silakan download sertifikat Anda.", {
+    attachments: [pdf]
+  });
+
+  // Hapus dokumen salinan setelah dikirim
+  DriveApp.getFileById(copiedTemplateId).setTrashed(true);
+
+  response = { status: "success" };
+  return ContentService.createTextOutput(JSON.stringify(response));
+}
